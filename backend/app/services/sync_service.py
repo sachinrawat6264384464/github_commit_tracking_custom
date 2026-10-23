@@ -19,19 +19,38 @@ class SyncService:
         self.db = db
         self.client = client or GitHubClient()
         self.settings = get_settings()
+        self._cache_initialized = False
+        self._cache_by_gh_id: Dict[int, Contributor] = {}
+        self._cache_by_login: Dict[str, Contributor] = {}
+        self._cache_by_email: Dict[str, Contributor] = {}
+
+    def _init_contributor_cache(self):
+        if self._cache_initialized:
+            return
+        contributors = self.db.query(Contributor).all()
+        for c in contributors:
+            if c.github_user_id:
+                self._cache_by_gh_id[c.github_user_id] = c
+            if c.github_login:
+                self._cache_by_login[c.github_login.lower()] = c
+            if c.normalized_email:
+                self._cache_by_email[c.normalized_email.lower()] = c
+        self._cache_initialized = True
 
     def _resolve_contributor(self, commit_data: Dict[str, Any]) -> Optional[Contributor]:
         """
-        Safely resolve contributor identity:
+        Safely resolve contributor identity with fast in-memory cache:
         1. By GitHub User ID
         2. By GitHub Login
         3. By normalized email
         """
+        self._init_contributor_cache()
+
         author_gh = commit_data.get("author")  # GitHub User object
         git_author = commit_data.get("commit", {}).get("author", {})  # Git Author object
 
         gh_id = author_gh.get("id") if author_gh else None
-        gh_login = author_gh.get("login") if author_gh else None
+        gh_login = (author_gh.get("login") or "").lower() if author_gh else None
         avatar_url = author_gh.get("avatar_url") if author_gh else None
 
         git_name = git_author.get("name") or gh_login or "Unknown"
@@ -39,40 +58,56 @@ class SyncService:
 
         contributor: Optional[Contributor] = None
 
-        # 1. Search by GitHub User ID
-        if gh_id:
-            contributor = self.db.query(Contributor).filter(Contributor.github_user_id == gh_id).first()
+        # 1. Search in-memory by GitHub User ID
+        if gh_id and gh_id in self._cache_by_gh_id:
+            contributor = self._cache_by_gh_id[gh_id]
 
-        # 2. Search by GitHub Login
-        if not contributor and gh_login:
-            contributor = self.db.query(Contributor).filter(Contributor.github_login == gh_login).first()
+        # 2. Search in-memory by GitHub Login
+        if not contributor and gh_login and gh_login in self._cache_by_login:
+            contributor = self._cache_by_login[gh_login]
 
-        # 3. Search by normalized email
-        if not contributor and git_email:
-            contributor = self.db.query(Contributor).filter(Contributor.normalized_email == git_email).first()
+        # 3. Search in-memory by normalized email
+        if not contributor and git_email and git_email in self._cache_by_email:
+            contributor = self._cache_by_email[git_email]
 
         # If still not found, create new contributor record
         if not contributor:
             contributor = Contributor(
                 github_user_id=gh_id,
-                github_login=gh_login,
+                github_login=author_gh.get("login") if author_gh else None,
                 display_name=git_name,
                 normalized_email=git_email,
                 avatar_url=avatar_url,
             )
             self.db.add(contributor)
             self.db.flush()
+
+            # Store in in-memory cache
+            if gh_id:
+                self._cache_by_gh_id[gh_id] = contributor
+            if gh_login:
+                self._cache_by_login[gh_login] = contributor
+            if git_email:
+                self._cache_by_email[git_email] = contributor
         else:
             # Update details if new information is discovered
+            updated = False
             if gh_id and not contributor.github_user_id:
                 contributor.github_user_id = gh_id
+                self._cache_by_gh_id[gh_id] = contributor
+                updated = True
             if gh_login and not contributor.github_login:
-                contributor.github_login = gh_login
+                contributor.github_login = author_gh.get("login")
+                self._cache_by_login[gh_login] = contributor
+                updated = True
             if avatar_url and not contributor.avatar_url:
                 contributor.avatar_url = avatar_url
+                updated = True
             if git_name and contributor.display_name == "Unknown":
                 contributor.display_name = git_name
-            self.db.flush()
+                updated = True
+            if updated:
+                self.db.flush()
 
         return contributor
 
@@ -128,6 +163,11 @@ class SyncService:
                 max_commits=self.settings.MAX_HISTORICAL_COMMITS_PER_REPO,
             )
 
+            # Preload existing commit SHAs for instant O(1) deduplication
+            existing_shas = set(
+                r[0] for r in self.db.query(Commit.sha).filter(Commit.repository_id == repo.id).all()
+            )
+
             processed_count = 0
 
             for c in raw_commits:
@@ -135,14 +175,10 @@ class SyncService:
                 if not sha:
                     continue
 
-                # Check if commit already exists (Deduplication)
-                existing = self.db.query(Commit).filter(
-                    Commit.repository_id == repo.id,
-                    Commit.sha == sha,
-                ).first()
-
-                if existing:
+                # Instant O(1) in-memory deduplication
+                if sha in existing_shas:
                     continue
+                existing_shas.add(sha)
 
                 # Parse commit metadata
                 git_commit = c.get("commit", {})
