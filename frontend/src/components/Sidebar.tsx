@@ -1,7 +1,7 @@
-import React from 'react';
 import {
   LayoutDashboard,
   FolderGit2,
+  Building2,
   GitCommit,
   Users,
   LineChart,
@@ -21,7 +21,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-    { id: 'repositories', label: 'Repositories', icon: FolderGit2, badge: `${reposCount}/10` },
+    { id: 'catalog', label: 'GitHub & Orgs', icon: Building2 },
+    { id: 'repositories', label: 'Tracked Repos', icon: FolderGit2, badge: `${reposCount}/10` },
     { id: 'commits', label: 'Commit Explorer', icon: GitCommit },
     { id: 'contributors', label: 'Contributors', icon: Users },
     { id: 'analytics', label: 'Analytics', icon: LineChart },

@@ -51,22 +51,54 @@ def get_connect_info():
     }
 
 
-@router.get("/my-repos")
-async def get_my_repositories():
+@router.get("/orgs")
+async def get_user_organizations():
     settings = get_settings()
     client = GitHubClient(settings)
-    repos = await client.list_user_repositories(per_page=100)
+    orgs = await client.list_user_organizations()
+    items = []
+    for o in orgs:
+        items.append({
+            "id": o.get("id"),
+            "login": o.get("login"),
+            "avatar_url": o.get("avatar_url"),
+            "description": o.get("description"),
+        })
+    return {"items": items, "total": len(items)}
+
+
+@router.get("/my-repos")
+async def get_my_repositories(db: Session = Depends(get_db)):
+    from app.models.repository import Repository
+    settings = get_settings()
+    client = GitHubClient(settings)
+    repos = await client.list_user_repositories(max_repos=200)
+
+    # Check which repos are already tracked in the database
+    tracked_repos = db.query(Repository.id, Repository.full_name).all()
+    tracked_map = {r.full_name.lower(): r.id for r in tracked_repos}
+
     items = []
     for r in repos:
+        full_name = r.get("full_name", "").lower()
+        is_tracked = full_name in tracked_map
+        tracked_id = tracked_map.get(full_name)
+
         items.append({
             "id": r.get("id"),
             "owner": r.get("owner", {}).get("login"),
+            "owner_type": r.get("owner", {}).get("type", "User"),
+            "owner_avatar_url": r.get("owner", {}).get("avatar_url"),
             "name": r.get("name"),
             "full_name": r.get("full_name"),
             "private": r.get("private", False),
             "description": r.get("description"),
             "default_branch": r.get("default_branch", "main"),
             "html_url": r.get("html_url"),
+            "language": r.get("language"),
+            "updated_at": r.get("updated_at"),
+            "is_tracked": is_tracked,
+            "tracked_id": tracked_id,
         })
     return {"items": items, "total": len(items)}
 

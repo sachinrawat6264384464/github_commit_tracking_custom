@@ -6,6 +6,7 @@ import { RepositoriesView } from './components/RepositoriesView';
 import { CommitsView } from './components/CommitsView';
 import { ContributorsView } from './components/ContributorsView';
 import { AnalyticsView } from './components/AnalyticsView';
+import { CatalogView } from './components/CatalogView';
 import { SettingsView } from './components/SettingsView';
 import { AddRepositoryModal } from './components/AddRepositoryModal';
 import { RepositoryDetailModal } from './components/RepositoryDetailModal';
@@ -87,7 +88,15 @@ export function App() {
           {activeTab === 'overview' && (
             <OverviewView
               onNavigateTab={setActiveTab}
-              onOpenAddRepo={() => setIsAddModalOpen(true)}
+              onOpenAddRepo={() => setActiveTab('catalog')}
+            />
+          )}
+
+          {activeTab === 'catalog' && (
+            <CatalogView
+              onRefreshAll={loadGlobalData}
+              onOpenRepoDetails={(r) => setSelectedRepo(r)}
+              trackedCount={repositories.length}
             />
           )}
 
@@ -95,7 +104,7 @@ export function App() {
             <RepositoriesView
               repositories={repositories}
               onRefresh={loadGlobalData}
-              onOpenAddModal={() => setIsAddModalOpen(true)}
+              onOpenAddModal={() => setActiveTab('catalog')}
               onSelectRepo={(r) => setSelectedRepo(r)}
             />
           )}

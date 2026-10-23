@@ -130,19 +130,40 @@ class GitHubClient:
         except GitHubAPIException:
             return None
 
-    async def list_user_repositories(self, per_page: int = 100) -> List[Dict[str, Any]]:
-        """List all repositories accessible to the authenticated user."""
+    async def list_user_organizations(self) -> List[Dict[str, Any]]:
+        """List all organizations that the authenticated user belongs to."""
         if not self.token or not self.token.strip() or self.token == "your_personal_access_token_here":
             return []
         try:
-            resp, _ = await self._request_with_retry(
-                "GET",
-                f"/user/repos?per_page={per_page}&sort=updated&affiliation=owner,collaborator,organization_member"
-            )
+            resp, _ = await self._request_with_retry("GET", "/user/orgs")
             return resp.json()
         except Exception as e:
-            logger.error(f"Failed to fetch user repositories: {e}")
+            logger.error(f"Failed to fetch user organizations: {e}")
             return []
+
+    async def list_user_repositories(self, max_repos: int = 200) -> List[Dict[str, Any]]:
+        """List all repositories accessible to the authenticated user across personal and organizations."""
+        if not self.token or not self.token.strip() or self.token == "your_personal_access_token_here":
+            return []
+        all_repos = []
+        page = 1
+        while len(all_repos) < max_repos:
+            try:
+                resp, _ = await self._request_with_retry(
+                    "GET",
+                    f"/user/repos?per_page=100&page={page}&sort=updated&affiliation=owner,collaborator,organization_member"
+                )
+                page_data = resp.json()
+                if not isinstance(page_data, list) or len(page_data) == 0:
+                    break
+                all_repos.extend(page_data)
+                if len(page_data) < 100:
+                    break
+                page += 1
+            except Exception as e:
+                logger.error(f"Failed to fetch page {page} of user repositories: {e}")
+                break
+        return all_repos[:max_repos]
 
     async def get_repository_details(self, owner: str, repo: str) -> Dict[str, Any]:
         """Fetch repository metadata."""

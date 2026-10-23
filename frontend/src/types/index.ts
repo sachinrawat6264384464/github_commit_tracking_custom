@@ -18,6 +18,30 @@ export interface Repository {
   latest_commit_at: string | null;
 }
 
+export interface OrganizationItem {
+  id: number;
+  login: string;
+  avatar_url: string;
+  description: string | null;
+}
+
+export interface CatalogRepoItem {
+  id: number;
+  owner: string;
+  owner_type: 'User' | 'Organization';
+  owner_avatar_url: string | null;
+  name: string;
+  full_name: string;
+  private: boolean;
+  description: string | null;
+  default_branch: string;
+  html_url: string;
+  language: string | null;
+  updated_at: string;
+  is_tracked: boolean;
+  tracked_id?: number;
+}
+
 export interface Commit {
   id: number;
   repository_id: number;
