@@ -51,6 +51,26 @@ def get_connect_info():
     }
 
 
+@router.get("/my-repos")
+async def get_my_repositories():
+    settings = get_settings()
+    client = GitHubClient(settings)
+    repos = await client.list_user_repositories(per_page=100)
+    items = []
+    for r in repos:
+        items.append({
+            "id": r.get("id"),
+            "owner": r.get("owner", {}).get("login"),
+            "name": r.get("name"),
+            "full_name": r.get("full_name"),
+            "private": r.get("private", False),
+            "description": r.get("description"),
+            "default_branch": r.get("default_branch", "main"),
+            "html_url": r.get("html_url"),
+        })
+    return {"items": items, "total": len(items)}
+
+
 @router.post("/disconnect")
 def disconnect_github():
     return {

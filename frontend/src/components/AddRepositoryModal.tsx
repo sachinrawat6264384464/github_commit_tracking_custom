@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, FolderGit2, AlertCircle, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, FolderGit2, AlertCircle, Loader2, Lock, Globe } from 'lucide-react';
 import { api } from '../lib/api';
 
 interface AddRepositoryModalProps {
@@ -7,6 +7,17 @@ interface AddRepositoryModalProps {
   onClose: () => void;
   onAdded: () => void;
   currentCount: number;
+}
+
+interface MyRepoItem {
+  id: number;
+  owner: string;
+  name: string;
+  full_name: string;
+  private: boolean;
+  description: string | null;
+  default_branch: string;
+  html_url: string;
 }
 
 const SAMPLE_REPOS = [
@@ -17,8 +28,6 @@ const SAMPLE_REPOS = [
   { owner: 'octocat', name: 'Hello-World', desc: 'My first repository on GitHub' },
   { owner: 'vercel', name: 'next.js', desc: 'The React Framework for the Web' },
   { owner: 'tailwindlabs', name: 'tailwindcss', desc: 'A utility-first CSS framework for rapid UI development' },
-  { owner: 'encode', name: 'httpx', desc: 'A next generation HTTP client for Python' },
-  { owner: 'sqlalchemy', name: 'sqlalchemy', desc: 'The Database Toolkit for Python' },
   { owner: 'pydantic', name: 'pydantic', desc: 'Data validation using Python type hints' },
 ];
 
@@ -31,6 +40,26 @@ export const AddRepositoryModal: React.FC<AddRepositoryModalProps> = ({
   const [repoInput, setRepoInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [myRepos, setMyRepos] = useState<MyRepoItem[]>([]);
+  const [loadingMyRepos, setLoadingMyRepos] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadMyRepos();
+    }
+  }, [isOpen]);
+
+  const loadMyRepos = async () => {
+    try {
+      setLoadingMyRepos(true);
+      const res = await api.getMyRepositories();
+      setMyRepos(res.items);
+    } catch (_) {
+      // Ignored if token not set yet
+    } finally {
+      setLoadingMyRepos(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -73,16 +102,16 @@ export const AddRepositoryModal: React.FC<AddRepositoryModalProps> = ({
     }
   };
 
-  const handleSelectSample = (sample: { owner: string; name: string }) => {
-    setRepoInput(`${sample.owner}/${sample.name}`);
+  const handleSelectRepo = (fullName: string) => {
+    setRepoInput(fullName);
     setError(null);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
+      <div className="w-full max-w-lg max-h-[90vh] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden flex flex-col">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-2.5">
             <FolderGit2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             <h2 className="text-base font-semibold text-slate-900 dark:text-white">
@@ -98,7 +127,7 @@ export const AddRepositoryModal: React.FC<AddRepositoryModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>Quota Usage</span>
             <span className="font-semibold text-slate-800 dark:text-slate-200">
@@ -112,7 +141,7 @@ export const AddRepositoryModal: React.FC<AddRepositoryModalProps> = ({
             </label>
             <input
               type="text"
-              placeholder="e.g. facebook/react or https://github.com/pallets/flask"
+              placeholder="e.g. facebook/react or yourusername/yourrepo"
               value={repoInput}
               onChange={(e) => setRepoInput(e.target.value)}
               disabled={isLoading}
@@ -127,18 +156,60 @@ export const AddRepositoryModal: React.FC<AddRepositoryModalProps> = ({
             </div>
           )}
 
+          {/* User's Own Connected GitHub Repositories */}
+          {myRepos.length > 0 && (
+            <div className="pt-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center justify-between">
+                <span>Your GitHub Repositories ({myRepos.length})</span>
+                <span className="text-[10px] lowercase font-normal text-blue-500">Click to select</span>
+              </span>
+              <div className="mt-2 grid grid-cols-1 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                {myRepos.map((repo) => (
+                  <button
+                    type="button"
+                    key={repo.id}
+                    onClick={() => handleSelectRepo(repo.full_name)}
+                    className={`text-left p-2 rounded-lg border transition flex items-center justify-between text-xs ${
+                      repoInput === repo.full_name
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      {repo.private ? (
+                        <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      ) : (
+                        <Globe className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      )}
+                      <span className="font-medium text-slate-800 dark:text-slate-200 truncate">
+                        {repo.full_name}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 shrink-0 font-mono">
+                      {repo.default_branch}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Quick-add suggestions */}
           <div className="pt-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Recommended Repositories
+              Popular Open Source Repositories
             </span>
-            <div className="mt-2 grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+            <div className="mt-2 grid grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
               {SAMPLE_REPOS.map((sample) => (
                 <button
                   type="button"
                   key={`${sample.owner}/${sample.name}`}
-                  onClick={() => handleSelectSample(sample)}
-                  className="text-left p-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-blue-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition group"
+                  onClick={() => handleSelectRepo(`${sample.owner}/${sample.name}`)}
+                  className={`text-left p-2 rounded-lg border transition group ${
+                    repoInput === `${sample.owner}/${sample.name}`
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                      : 'border-slate-200 dark:border-slate-800 hover:border-blue-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                  }`}
                 >
                   <p className="text-xs font-medium text-slate-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                     {sample.owner}/{sample.name}

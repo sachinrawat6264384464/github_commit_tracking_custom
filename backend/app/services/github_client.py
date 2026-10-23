@@ -130,6 +130,20 @@ class GitHubClient:
         except GitHubAPIException:
             return None
 
+    async def list_user_repositories(self, per_page: int = 100) -> List[Dict[str, Any]]:
+        """List all repositories accessible to the authenticated user."""
+        if not self.token or not self.token.strip() or self.token == "your_personal_access_token_here":
+            return []
+        try:
+            resp, _ = await self._request_with_retry(
+                "GET",
+                f"/user/repos?per_page={per_page}&sort=updated&affiliation=owner,collaborator,organization_member"
+            )
+            return resp.json()
+        except Exception as e:
+            logger.error(f"Failed to fetch user repositories: {e}")
+            return []
+
     async def get_repository_details(self, owner: str, repo: str) -> Dict[str, Any]:
         """Fetch repository metadata."""
         resp, rate_info = await self._request_with_retry("GET", f"/repos/{owner}/{repo}")
