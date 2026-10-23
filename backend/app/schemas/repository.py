@@ -36,6 +36,16 @@ class RepositoryResponse(BaseModel):
     total_commits: Optional[int] = 0
     total_contributors: Optional[int] = 0
     latest_commit_at: Optional[datetime.datetime] = None
+    branches_count: Optional[int] = 1
+    branches: Optional[List[str]] = []
+
+
+class BranchResponse(BaseModel):
+    name: str
+    is_default: bool = False
+    protected: bool = False
+    commit_sha: Optional[str] = None
+    commit_url: Optional[str] = None
 
 
 class RepositoryListResponse(BaseModel):

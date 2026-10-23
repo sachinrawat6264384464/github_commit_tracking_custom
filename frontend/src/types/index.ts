@@ -16,6 +16,16 @@ export interface Repository {
   total_commits: number;
   total_contributors: number;
   latest_commit_at: string | null;
+  branches_count?: number;
+  branches?: string[];
+}
+
+export interface BranchItem {
+  name: string;
+  is_default: boolean;
+  protected: boolean;
+  commit_sha?: string;
+  commit_url?: string;
 }
 
 export interface OrganizationItem {

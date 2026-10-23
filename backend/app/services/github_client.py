@@ -170,6 +170,17 @@ class GitHubClient:
         resp, rate_info = await self._request_with_retry("GET", f"/repos/{owner}/{repo}")
         return resp.json()
 
+    async def list_branches(self, owner: str, repo: str) -> List[Dict[str, Any]]:
+        """Fetch list of branches for a repository."""
+        try:
+            resp, _ = await self._request_with_retry("GET", f"/repos/{owner}/{repo}/branches?per_page=100")
+            if resp.status_code == 200:
+                return resp.json()
+            return []
+        except Exception as e:
+            logger.warning(f"Could not fetch branches for {owner}/{repo}: {e}")
+            return []
+
     def _parse_next_link(self, link_header: Optional[str]) -> Optional[str]:
         """Parse RFC 5988 Link header for rel='next' URL."""
         if not link_header:

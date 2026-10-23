@@ -14,17 +14,39 @@ from app.schemas.repository import (
     RepositoryResponse,
     RepositoryListResponse,
     CollaboratorResponse,
+    BranchResponse,
 )
 from app.schemas.commit import CommitResponse, CommitListResponse
 from app.schemas.contributor import ContributorResponse
 from app.schemas.sync import SyncTriggerResponse
 from app.services.github_client import GitHubClient, GitHubAPIException
 from app.services.sync_service import SyncService
+import time
+import asyncio
 
 router = APIRouter(prefix="/api/v1/repositories", tags=["Repositories"])
 
+_branches_cache: dict = {}  # {repo_key: (expiry_timestamp, branch_names, branch_objects)}
 
-def _build_repo_response(repo: Repository, db: Session) -> RepositoryResponse:
+
+async def _get_repo_branch_names(client: GitHubClient, owner: str, name: str, default_branch: str) -> List[str]:
+    key = f"{owner}/{name}".lower()
+    now = time.time()
+    if key in _branches_cache:
+        expiry, b_names, _ = _branches_cache[key]
+        if now < expiry:
+            return b_names
+
+    raw = await client.list_branches(owner, name)
+    b_names = [b.get("name") for b in raw if b.get("name")]
+    if not b_names:
+        b_names = [default_branch or "main"]
+
+    _branches_cache[key] = (now + 300, b_names, raw)
+    return b_names
+
+
+def _build_repo_response(repo: Repository, db: Session, branches: Optional[List[str]] = None) -> RepositoryResponse:
     total_commits = db.query(func.count(Commit.id)).filter(Commit.repository_id == repo.id).scalar() or 0
     total_contributors = (
         db.query(func.count(func.distinct(Commit.contributor_id)))
@@ -37,6 +59,8 @@ def _build_repo_response(repo: Repository, db: Session) -> RepositoryResponse:
         .filter(Commit.repository_id == repo.id)
         .scalar()
     )
+
+    b_list = branches if branches is not None else [repo.default_branch or "main"]
 
     return RepositoryResponse(
         id=repo.id,
@@ -56,13 +80,28 @@ def _build_repo_response(repo: Repository, db: Session) -> RepositoryResponse:
         total_commits=total_commits,
         total_contributors=total_contributors,
         latest_commit_at=latest_commit_at,
+        branches_count=len(b_list),
+        branches=b_list,
     )
 
 
 @router.get("", response_model=RepositoryListResponse)
-def list_repositories(db: Session = Depends(get_db)):
+async def list_repositories(db: Session = Depends(get_db)):
     repos = db.query(Repository).order_by(Repository.created_at.desc()).all()
-    items = [_build_repo_response(r, db) for r in repos]
+    client = GitHubClient()
+    
+    # Asynchronously load branch names for all repos in parallel
+    branch_tasks = [
+        _get_repo_branch_names(client, r.owner, r.name, r.default_branch)
+        for r in repos
+    ]
+    branches_results = await asyncio.gather(*branch_tasks, return_exceptions=True)
+
+    items = []
+    for r, b_res in zip(repos, branches_results):
+        branches = b_res if isinstance(b_res, list) else [r.default_branch or "main"]
+        items.append(_build_repo_response(r, db, branches=branches))
+
     return RepositoryListResponse(items=items, total=len(items))
 
 
@@ -305,3 +344,36 @@ async def get_repository_collaborators(repository_id: int, db: Session = Depends
     result = [CollaboratorResponse(**val) for val in collaborators_map.values()]
     result.sort(key=lambda x: (x.commits_count, 1 if x.role == "Admin" else 0), reverse=True)
     return result
+
+
+@router.get("/{repository_id}/branches", response_model=List[BranchResponse])
+async def get_repository_branches(repository_id: int, db: Session = Depends(get_db)):
+    repo = db.query(Repository).filter(Repository.id == repository_id).first()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    client = GitHubClient()
+    raw_branches = await client.list_branches(repo.owner, repo.name)
+    results = []
+    for b in raw_branches:
+        name = b.get("name")
+        commit_meta = b.get("commit", {})
+        results.append(
+            BranchResponse(
+                name=name,
+                is_default=(name == repo.default_branch),
+                protected=b.get("protected", False),
+                commit_sha=commit_meta.get("sha"),
+                commit_url=commit_meta.get("url"),
+            )
+        )
+    if not results:
+        results.append(
+            BranchResponse(
+                name=repo.default_branch or "main",
+                is_default=True,
+                protected=False,
+            )
+        )
+    return results
+

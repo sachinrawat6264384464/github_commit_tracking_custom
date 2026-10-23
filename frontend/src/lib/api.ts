@@ -12,6 +12,7 @@ import {
   OrganizationItem,
   CatalogRepoItem,
   Collaborator,
+  BranchItem,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8001/api/v1';
@@ -66,6 +67,8 @@ export const api = {
   },
   getRepositoryCollaborators: (id: number) =>
     fetchJSON<Collaborator[]>(`/repositories/${id}/collaborators`),
+  getRepositoryBranches: (id: number) =>
+    fetchJSON<BranchItem[]>(`/repositories/${id}/branches`),
 
   // Commits
   getCommits: (params: {

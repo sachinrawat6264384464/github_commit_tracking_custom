@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Flame,
   ExternalLink,
+  GitBranch,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -332,6 +333,29 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
                           {repo.description || 'No description provided.'}
                         </p>
+                        {repo.branches && repo.branches.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                            {repo.branches.slice(0, 3).map((b) => (
+                              <span
+                                key={b}
+                                className={`text-[10px] font-mono px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                                  b === repo.default_branch
+                                    ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40 font-semibold'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                }`}
+                              >
+                                <GitBranch className="w-2.5 h-2.5 opacity-70" />
+                                <span>{b}</span>
+                                {b === repo.default_branch && <span className="text-[9px] opacity-75 font-sans">(default)</span>}
+                              </span>
+                            ))}
+                            {repo.branches.length > 3 && (
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                +{repo.branches.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -340,9 +364,15 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                         <div className="text-sm font-bold text-slate-900 dark:text-white">
                           {repo.total_commits.toLocaleString()} <span className="text-xs font-normal text-slate-500">commits</span>
                         </div>
-                        <div className="text-xs text-slate-400 flex items-center gap-1 justify-end">
-                          <Users className="w-3 h-3" />
-                          <span>{repo.total_contributors} contributors</span>
+                        <div className="text-xs text-slate-400 flex items-center gap-2 justify-end mt-0.5">
+                          <span className="flex items-center gap-1 font-mono text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded">
+                            <GitBranch className="w-3 h-3" />
+                            <span>{repo.branches_count || (repo.branches?.length || 1)} branches</span>
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            <span>{repo.total_contributors} contributors</span>
+                          </span>
                         </div>
                       </div>
 
@@ -354,7 +384,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition shadow-sm"
                       >
                         <ShieldCheck className="w-3.5 h-3.5" />
-                        <span>Team & Commits</span>
+                        <span>Team & Branches</span>
                       </button>
                     </div>
                   </div>
@@ -435,9 +465,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 </div>
 
                 <div className="mt-4 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-3 border-t border-slate-200 dark:border-slate-700/60">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     <span>
                       <strong className="text-slate-900 dark:text-white">{r.total_commits}</strong> commits
+                    </span>
+                    <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-medium">
+                      <GitBranch className="w-3.5 h-3.5" />
+                      <span><strong>{r.branches_count || (r.branches?.length || 1)}</strong> branches</span>
                     </span>
                     <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400 font-medium">
                       <Users className="w-3.5 h-3.5" />

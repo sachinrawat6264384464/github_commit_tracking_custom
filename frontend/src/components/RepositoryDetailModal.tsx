@@ -19,7 +19,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { Repository, Commit, ContributorShare, CommitTrend, Collaborator } from '../types';
+import { Repository, Commit, ContributorShare, CommitTrend, Collaborator, BranchItem } from '../types';
 import { api } from '../lib/api';
 
 interface RepositoryDetailModalProps {
@@ -36,6 +36,7 @@ export const RepositoryDetailModal: React.FC<RepositoryDetailModalProps> = ({
   const [commits, setCommits] = useState<Commit[]>([]);
   const [contributors, setContributors] = useState<ContributorShare[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [branches, setBranches] = useState<BranchItem[]>([]);
   const [trends, setTrends] = useState<CommitTrend[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -53,17 +54,19 @@ export const RepositoryDetailModal: React.FC<RepositoryDetailModalProps> = ({
     if (!repo) return;
     try {
       setLoading(true);
-      const [commitsRes, contribRes, trendsRes, collabsRes] = await Promise.all([
+      const [commitsRes, contribRes, trendsRes, collabsRes, branchesRes] = await Promise.all([
         api.getRepositoryCommits(repo.id, page, 15, searchTerm),
         api.getContributorLeaderboard(30, repo.id),
         api.getCommitTrends(14, 'daily', repo.id),
         api.getRepositoryCollaborators(repo.id).catch(() => []),
+        api.getRepositoryBranches(repo.id).catch(() => []),
       ]);
       setCommits(commitsRes.items);
       setTotalPages(commitsRes.total_pages);
       setContributors(contribRes);
       setTrends(trendsRes.data);
       setCollaborators(collabsRes);
+      setBranches(branchesRes);
     } catch (err) {
       console.error('Failed to load repo details:', err);
     } finally {
@@ -243,6 +246,70 @@ export const RepositoryDetailModal: React.FC<RepositoryDetailModalProps> = ({
                           {new Date(c.latest_commit_at).toLocaleDateString()}
                         </span>
                       )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Repository Branches */}
+          {branches.length > 0 && (
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <GitBranch className="w-4 h-4 text-indigo-500" />
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                    Repository Branches ({branches.length})
+                  </h3>
+                </div>
+                <span className="text-xs text-slate-400">
+                  Default branch: <strong className="text-slate-700 dark:text-slate-300 font-mono">{repo.default_branch}</strong>
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {branches.map((b) => (
+                  <div
+                    key={b.name}
+                    className={`p-3 rounded-lg border transition-all flex items-center justify-between ${
+                      b.is_default
+                        ? 'bg-blue-50/70 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/50'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700/60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <GitBranch className={`w-3.5 h-3.5 shrink-0 ${b.is_default ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`} />
+                      <div className="min-w-0">
+                        <span className="font-mono text-xs font-semibold text-slate-900 dark:text-white truncate block">
+                          {b.name}
+                        </span>
+                        {b.commit_sha && (
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {b.commit_sha.slice(0, 7)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {b.is_default && (
+                        <span className="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
+                          Default
+                        </span>
+                      )}
+                      {b.protected && (
+                        <span className="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+                          Protected
+                        </span>
+                      )}
+                      <a
+                        href={`https://github.com/${repo.full_name}/tree/${encodeURIComponent(b.name)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-slate-400 hover:text-blue-500 p-1"
+                        title="View branch on GitHub"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
                     </div>
                   </div>
                 ))}
