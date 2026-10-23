@@ -28,13 +28,46 @@ logging.basicConfig(
 logger = logging.getLogger("gitpulse.main")
 
 
+async def periodic_sync_worker():
+    import asyncio
+    from app.models.repository import Repository
+    from app.services.sync_service import SyncService
+    from app.database import SessionLocal
+
+    interval_sec = max(settings.AUTO_SYNC_INTERVAL_MINUTES * 60, 60)
+    logger.info(f"Background periodic sync worker active (Interval: {settings.AUTO_SYNC_INTERVAL_MINUTES} min).")
+    while True:
+        try:
+            await asyncio.sleep(interval_sec)
+            logger.info("Running automatic scheduled repository sync...")
+            with SessionLocal() as db:
+                repos = db.query(Repository).filter(Repository.is_active == True).all()
+                if repos:
+                    sync_service = SyncService(db)
+                    for r in repos:
+                        try:
+                            await sync_service.sync_repository(r, sync_type="incremental")
+                        except Exception as e:
+                            logger.error(f"Periodic sync error for {r.full_name}: {e}")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Background sync worker encountered error: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize database tables on application startup
+    import asyncio
     logger.info("Initializing database schema...")
     Base.metadata.create_all(bind=engine)
     logger.info("Database schema initialized successfully.")
+
+    # Launch automated periodic sync in background
+    sync_task = asyncio.create_task(periodic_sync_worker())
+
     yield
+
+    sync_task.cancel()
     logger.info("Application shutting down.")
 
 
