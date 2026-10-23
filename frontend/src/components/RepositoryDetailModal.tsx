@@ -9,6 +9,7 @@ import {
   GitCommit,
   Calendar,
   Search,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -18,7 +19,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { Repository, Commit, ContributorShare, CommitTrend } from '../types';
+import { Repository, Commit, ContributorShare, CommitTrend, Collaborator } from '../types';
 import { api } from '../lib/api';
 
 interface RepositoryDetailModalProps {
@@ -34,6 +35,7 @@ export const RepositoryDetailModal: React.FC<RepositoryDetailModalProps> = ({
 }) => {
   const [commits, setCommits] = useState<Commit[]>([]);
   const [contributors, setContributors] = useState<ContributorShare[]>([]);
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [trends, setTrends] = useState<CommitTrend[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -51,15 +53,17 @@ export const RepositoryDetailModal: React.FC<RepositoryDetailModalProps> = ({
     if (!repo) return;
     try {
       setLoading(true);
-      const [commitsRes, contribRes, trendsRes] = await Promise.all([
+      const [commitsRes, contribRes, trendsRes, collabsRes] = await Promise.all([
         api.getRepositoryCommits(repo.id, page, 15, searchTerm),
         api.getContributorLeaderboard(30, repo.id),
         api.getCommitTrends(14, 'daily', repo.id),
+        api.getRepositoryCollaborators(repo.id).catch(() => []),
       ]);
       setCommits(commitsRes.items);
       setTotalPages(commitsRes.total_pages);
       setContributors(contribRes);
       setTrends(trendsRes.data);
+      setCollaborators(collabsRes);
     } catch (err) {
       console.error('Failed to load repo details:', err);
     } finally {
@@ -175,6 +179,76 @@ export const RepositoryDetailModal: React.FC<RepositoryDetailModalProps> = ({
               </ResponsiveContainer>
             </div>
           </div>
+
+          {/* Repository Collaborators & Team Access */}
+          {collaborators.length > 0 && (
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                    Repository Collaborators ({collaborators.length})
+                  </h3>
+                </div>
+                <span className="text-xs text-slate-400">Team members with repository access</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {collaborators.map((c) => (
+                  <div
+                    key={c.login}
+                    className="p-3 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 flex flex-col justify-between"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      {c.avatar_url ? (
+                        <img
+                          src={c.avatar_url}
+                          alt={c.login}
+                          className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 object-cover"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-xs text-slate-600 dark:text-slate-300">
+                          {c.login[0].toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <a
+                          href={c.html_url || `https://github.com/${c.login}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold text-xs text-slate-900 dark:text-white hover:text-blue-500 truncate flex items-center gap-1"
+                        >
+                          <span className="truncate">{c.login}</span>
+                          <ExternalLink className="w-2.5 h-2.5 opacity-60 shrink-0" />
+                        </a>
+                        <span
+                          className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.2 rounded mt-0.5 ${
+                            c.role === 'Admin'
+                              ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                              : c.role === 'Write'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                              : 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                          }`}
+                        >
+                          {c.role} Access
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                      <span>
+                        <strong className="text-slate-800 dark:text-slate-200">{c.commits_count}</strong> commits
+                      </span>
+                      {c.latest_commit_at && (
+                        <span className="text-[10px] text-slate-400">
+                          {new Date(c.latest_commit_at).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Top Contributors Leaderboard for this Repo */}
           {contributors.length > 0 && (

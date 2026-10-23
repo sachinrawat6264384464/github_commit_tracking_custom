@@ -8,6 +8,10 @@ import {
   RefreshCw,
   AlertTriangle,
   CheckCircle2,
+  Trophy,
+  ShieldCheck,
+  Flame,
+  ExternalLink,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -23,14 +27,17 @@ import { api } from '../lib/api';
 interface OverviewViewProps {
   onNavigateTab: (tab: string) => void;
   onOpenAddRepo: () => void;
+  onOpenRepoDetails: (repo: Repository) => void;
 }
 
 export const OverviewView: React.FC<OverviewViewProps> = ({
   onNavigateTab,
   onOpenAddRepo,
+  onOpenRepoDetails,
 }) => {
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null);
   const [trends, setTrends] = useState<CommitTrend[]>([]);
+  const [allRepos, setAllRepos] = useState<Repository[]>([]);
   const [recentRepos, setRecentRepos] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,6 +55,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       ]);
       setMetrics(overviewData);
       setTrends(trendsData.data);
+      const sorted = [...reposData.items].sort((a, b) => b.total_commits - a.total_commits);
+      setAllRepos(sorted);
       setRecentRepos(reposData.items.slice(0, 4));
     } catch (err) {
       console.error('Failed to load overview data:', err);
@@ -264,6 +273,106 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </div>
       </div>
 
+      {/* Top Committed Repositories Leaderboard */}
+      {allRepos.length > 0 && (
+        <div className="p-6 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-amber-500" />
+              <div>
+                <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+                  Top Committed Repositories
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Repositories ranked by total commit volume and contributor momentum
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-1">
+              <Flame className="w-3.5 h-3.5" />
+              <span>Leaderboard</span>
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {allRepos.slice(0, 5).map((repo, idx) => {
+              const maxCommits = allRepos[0]?.total_commits || 1;
+              const percentage = Math.round((repo.total_commits / maxCommits) * 100);
+
+              return (
+                <div
+                  key={repo.id}
+                  onClick={() => onOpenRepoDetails(repo)}
+                  className="group p-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-500/60 bg-slate-50/60 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800/80 transition-all cursor-pointer shadow-none hover:shadow-md"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                          idx === 0
+                            ? 'bg-amber-500 text-white shadow-sm shadow-amber-500/30'
+                            : idx === 1
+                            ? 'bg-slate-400 text-white'
+                            : idx === 2
+                            ? 'bg-amber-700 text-white'
+                            : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        #{idx + 1}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-sm text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                            {repo.full_name}
+                          </h3>
+                          <span className="text-[10px] font-mono uppercase px-1.5 py-0.2 rounded border border-slate-200 dark:border-slate-700 text-slate-400">
+                            {repo.visibility}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
+                          {repo.description || 'No description provided.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 sm:shrink-0 justify-between sm:justify-end">
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-slate-900 dark:text-white">
+                          {repo.total_commits.toLocaleString()} <span className="text-xs font-normal text-slate-500">commits</span>
+                        </div>
+                        <div className="text-xs text-slate-400 flex items-center gap-1 justify-end">
+                          <Users className="w-3 h-3" />
+                          <span>{repo.total_contributors} contributors</span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenRepoDetails(repo);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition shadow-sm"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>Team & Commits</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Commit volume bar */}
+                  <div className="mt-3 w-full bg-slate-200 dark:bg-slate-700/60 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-blue-500 to-indigo-600 h-1.5 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.max(percentage, 5)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Monitored Repositories Snapshot */}
       <div className="p-6 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-center justify-between mb-4">
@@ -300,11 +409,12 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             {recentRepos.map((r) => (
               <div
                 key={r.id}
-                className="p-4 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-blue-500/50 transition-colors bg-slate-50/50 dark:bg-slate-800/40"
+                onClick={() => onOpenRepoDetails(r)}
+                className="group p-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-500/60 transition-all bg-slate-50/50 dark:bg-slate-800/40 hover:bg-white dark:hover:bg-slate-800/70 cursor-pointer shadow-none hover:shadow-md"
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="font-semibold text-sm text-slate-900 dark:text-white">
+                    <h3 className="font-semibold text-sm text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                       {r.full_name}
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
@@ -329,18 +439,31 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                     <span>
                       <strong className="text-slate-900 dark:text-white">{r.total_commits}</strong> commits
                     </span>
-                    <span>
-                      <strong className="text-slate-900 dark:text-white">{r.total_contributors}</strong> contributors
+                    <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400 font-medium">
+                      <Users className="w-3.5 h-3.5" />
+                      <span><strong>{r.total_contributors}</strong> collaborators</span>
                     </span>
                   </div>
-                  <a
-                    href={r.html_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                  >
-                    GitHub <ArrowUpRight className="w-3 h-3" />
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenRepoDetails(r);
+                      }}
+                      className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      View Team
+                    </button>
+                    <a
+                      href={r.html_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
                 </div>
               </div>
             ))}

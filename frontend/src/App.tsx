@@ -89,6 +89,7 @@ export function App() {
             <OverviewView
               onNavigateTab={setActiveTab}
               onOpenAddRepo={() => setActiveTab('catalog')}
+              onOpenRepoDetails={(r) => setSelectedRepo(r)}
             />
           )}
 

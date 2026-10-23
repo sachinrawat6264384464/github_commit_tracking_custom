@@ -8,7 +8,13 @@ from app.models.repository import Repository
 from app.models.commit import Commit
 from app.models.contributor import Contributor
 from app.models.sync_job import SyncJob
-from app.schemas.repository import RepositoryCreate, RepositoryUpdate, RepositoryResponse, RepositoryListResponse
+from app.schemas.repository import (
+    RepositoryCreate,
+    RepositoryUpdate,
+    RepositoryResponse,
+    RepositoryListResponse,
+    CollaboratorResponse,
+)
 from app.schemas.commit import CommitResponse, CommitListResponse
 from app.schemas.contributor import ContributorResponse
 from app.schemas.sync import SyncTriggerResponse
@@ -224,3 +230,78 @@ def get_repository_commits(
         page_size=page_size,
         total_pages=total_pages,
     )
+
+
+@router.get("/{repository_id}/collaborators", response_model=List[CollaboratorResponse])
+async def get_repository_collaborators(repository_id: int, db: Session = Depends(get_db)):
+    repo = db.query(Repository).filter(Repository.id == repository_id).first()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    client = GitHubClient()
+    collaborators_map = {}
+
+    # 1. Fetch GitHub Collaborators if permitted
+    try:
+        resp, _ = await client._request_with_retry("GET", f"/repos/{repo.owner}/{repo.name}/collaborators")
+        if resp.status_code == 200:
+            for item in resp.json():
+                login = item.get("login")
+                if not login:
+                    continue
+                perms = item.get("permissions", {})
+                role = "Admin" if perms.get("admin") else ("Write" if perms.get("push") else "Read")
+                collaborators_map[login.lower()] = {
+                    "id": item.get("id"),
+                    "login": login,
+                    "avatar_url": item.get("avatar_url"),
+                    "html_url": item.get("html_url"),
+                    "role": role,
+                    "permissions": perms,
+                    "commits_count": 0,
+                    "latest_commit_at": None,
+                }
+    except Exception as e:
+        # Fallback if personal token doesn't have repo admin scope
+        pass
+
+    # 2. Correlate with commits in local database
+    commits_by_contributor = (
+        db.query(
+            Contributor.id,
+            Contributor.github_login,
+            Contributor.display_name,
+            Contributor.avatar_url,
+            func.count(Commit.id).label("commits_count"),
+            func.max(Commit.committed_at).label("latest_commit"),
+        )
+        .join(Commit, Commit.contributor_id == Contributor.id)
+        .filter(Commit.repository_id == repository_id)
+        .group_by(Contributor.id)
+        .all()
+    )
+
+    for c_id, gh_login, name, avatar, c_count, max_date in commits_by_contributor:
+        key = (gh_login or name or "").lower()
+        if key in collaborators_map:
+            collaborators_map[key]["commits_count"] = c_count
+            collaborators_map[key]["latest_commit_at"] = max_date
+            if not collaborators_map[key]["avatar_url"] and avatar:
+                collaborators_map[key]["avatar_url"] = avatar
+        else:
+            # Contributor with commits who might not be directly in collaborators list
+            collaborators_map[key] = {
+                "id": c_id,
+                "login": gh_login or name,
+                "avatar_url": avatar,
+                "html_url": f"https://github.com/{gh_login}" if gh_login else None,
+                "role": "Contributor",
+                "permissions": {"push": True, "pull": True},
+                "commits_count": c_count,
+                "latest_commit_at": max_date,
+            }
+
+    # Format result list sorted by commits_count (descending)
+    result = [CollaboratorResponse(**val) for val in collaborators_map.values()]
+    result.sort(key=lambda x: (x.commits_count, 1 if x.role == "Admin" else 0), reverse=True)
+    return result

@@ -142,3 +142,21 @@ export interface GitHubStatus {
   rate_limit_reset: string | null;
   user_or_app_login: string | null;
 }
+
+export interface Collaborator {
+  id?: number;
+  login: string;
+  avatar_url?: string;
+  html_url?: string;
+  role: string;
+  permissions?: {
+    admin?: boolean;
+    push?: boolean;
+    pull?: boolean;
+    triage?: boolean;
+    maintain?: boolean;
+  };
+  commits_count: number;
+  latest_commit_at?: string;
+}
+

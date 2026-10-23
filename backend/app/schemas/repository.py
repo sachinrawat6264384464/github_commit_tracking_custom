@@ -41,3 +41,14 @@ class RepositoryResponse(BaseModel):
 class RepositoryListResponse(BaseModel):
     items: List[RepositoryResponse]
     total: int
+
+
+class CollaboratorResponse(BaseModel):
+    id: Optional[int] = None
+    login: str
+    avatar_url: Optional[str] = None
+    html_url: Optional[str] = None
+    role: str = "Contributor"
+    permissions: Optional[dict] = None
+    commits_count: int = 0
+    latest_commit_at: Optional[datetime.datetime] = None
