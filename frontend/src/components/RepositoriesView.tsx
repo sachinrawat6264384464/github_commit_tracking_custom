@@ -77,7 +77,7 @@ export const RepositoriesView: React.FC<RepositoriesViewProps> = ({
               Repository Explorer
             </h1>
             <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold">
-              {repositories.length} / 10 Active
+              {repositories.length} Active
             </span>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -88,8 +88,7 @@ export const RepositoriesView: React.FC<RepositoriesViewProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={onOpenAddModal}
-            disabled={repositories.length >= 10}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition shadow-sm"
           >
             <Plus className="w-4 h-4" />
             <span>Add Repository</span>
@@ -118,7 +117,7 @@ export const RepositoriesView: React.FC<RepositoriesViewProps> = ({
           </h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
             {repositories.length === 0
-              ? 'Connect up to 10 GitHub repositories to monitor commits and contributor analytics.'
+              ? 'Connect GitHub repositories to monitor commits and contributor analytics.'
               : 'Try clearing your search query.'}
           </p>
           {repositories.length === 0 && (

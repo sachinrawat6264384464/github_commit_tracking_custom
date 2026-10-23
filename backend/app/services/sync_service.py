@@ -189,6 +189,10 @@ class SyncService:
                 self.db.add(new_commit)
                 processed_count += 1
 
+                # Commit every 50 records to release transaction locks
+                if processed_count % 50 == 0:
+                    self.db.commit()
+
             # Update repository state
             repo.last_synced_at = datetime.utcnow()
             repo.sync_status = "synced"

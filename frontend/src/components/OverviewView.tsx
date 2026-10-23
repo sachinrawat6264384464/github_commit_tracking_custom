@@ -128,7 +128,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <span className="text-3xl font-bold text-slate-900 dark:text-white">
               {metrics?.total_repositories || 0}
             </span>
-            <span className="text-xs text-slate-400">/ 10 max</span>
+            <span className="text-xs text-slate-400">tracked</span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
             {metrics?.active_repositories || 0} active sync enabled
@@ -268,7 +268,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       <div className="p-6 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-            Monitored Repositories ({recentRepos.length}/10)
+            Monitored Repositories ({metrics?.total_repositories || recentRepos.length})
           </h2>
           <button
             onClick={() => onNavigateTab('repositories')}
@@ -286,7 +286,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               No repositories tracked yet
             </h3>
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              Add up to 10 GitHub repositories to monitor commits, contributor activity, and project momentum.
+              Add GitHub repositories to monitor commits, contributor activity, and project momentum.
             </p>
             <button
               onClick={onOpenAddRepo}

@@ -70,13 +70,6 @@ async def register_repository(
     name = repo_in.name.strip()
     full_name = f"{owner}/{name}".lower()
 
-    # Check 10 repositories capacity limit as requested by user
-    total_existing = db.query(func.count(Repository.id)).scalar() or 0
-    if total_existing >= 10:
-        raise HTTPException(
-            status_code=400,
-            detail="Maximum limit of 10 repositories reached for this dashboard. Remove an existing repository to add a new one.",
-        )
 
     # Check for duplicate
     existing = db.query(Repository).filter(Repository.full_name == full_name).first()
@@ -108,11 +101,19 @@ async def register_repository(
     db.commit()
     db.refresh(repo)
 
-    # Trigger initial sync in background
-    sync_service = SyncService(db, client)
-    background_tasks.add_task(sync_service.sync_repository, repo, sync_type="full")
+    # Trigger initial sync in background with isolated session
+    background_tasks.add_task(_run_isolated_repo_sync, repo.id, "full")
 
     return _build_repo_response(repo, db)
+
+
+async def _run_isolated_repo_sync(repo_id: int, sync_type: str = "incremental", job_id: Optional[int] = None):
+    from app.database import SessionLocal
+    with SessionLocal() as db_session:
+        repo = db_session.query(Repository).filter(Repository.id == repo_id).first()
+        if repo:
+            service = SyncService(db_session)
+            await service.sync_repository(repo, sync_type=sync_type, job_id=job_id)
 
 
 @router.get("/{repository_id}", response_model=RepositoryResponse)
@@ -154,8 +155,7 @@ def trigger_repository_sync(
     db.commit()
     db.refresh(job)
 
-    sync_service = SyncService(db)
-    background_tasks.add_task(sync_service.sync_repository, repo, sync_type=sync_type, job_id=job.id)
+    background_tasks.add_task(_run_isolated_repo_sync, repo.id, sync_type, job.id)
 
     return SyncTriggerResponse(
         message=f"Sync triggered for {repo.full_name}",

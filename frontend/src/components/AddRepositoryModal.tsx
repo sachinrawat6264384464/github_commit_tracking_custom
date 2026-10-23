@@ -129,9 +129,9 @@ export const AddRepositoryModal: React.FC<AddRepositoryModalProps> = ({
         {/* Modal Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>Quota Usage</span>
+            <span>Tracked Repositories</span>
             <span className="font-semibold text-slate-800 dark:text-slate-200">
-              {currentCount} / 10 Repositories
+              {currentCount} Active
             </span>
           </div>
 

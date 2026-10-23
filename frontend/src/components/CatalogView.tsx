@@ -56,10 +56,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   };
 
   const handleTrackRepo = async (repo: CatalogRepoItem) => {
-    if (trackedCount >= 10) {
-      alert('Maximum limit of 10 tracked repositories reached. Untrack an existing repository first.');
-      return;
-    }
     try {
       setActionLoadingId(repo.id);
       await api.registerRepository(repo.owner, repo.name);
@@ -297,7 +293,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   ) : (
                     <button
                       onClick={() => handleTrackRepo(repo)}
-                      disabled={isLoading || trackedCount >= 10}
+                      disabled={isLoading}
                       className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-50 shadow-sm"
                     >
                       {isLoading ? (
